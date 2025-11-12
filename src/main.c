@@ -1,4 +1,5 @@
 #include "codevault.h"
+#include "watcher.h"
 #include "db.h"
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -8,7 +9,11 @@
 static volatile sig_atomic_t running = 1;
 
 static void handle_sig(int sig) {
-    if (sig == SIGINT || sig == SIGTERM) running = 0;
+    if (sig == SIGINT || sig == SIGTERM) {
+        printf("\n[codevault] Caught signal %d, shutting down...\n", sig);
+        running = 0; 
+        cv_watcher_stop();
+    }
 }
 
 static int daemonize_process(bool foreground) {
@@ -43,15 +48,32 @@ static int daemonize_process(bool foreground) {
     return 0;
 }
 
+void on_repo_changed(const char *path) {
+    printf("[codevault] Caught change in %s\n", path);
+    //TODO: Integrate Adding to DB Here
+}
+
 int main(int argc, char **argv) {
     bool foreground = false;
     bool init_db_only = false;
     const char *vault_override = NULL;
+    const char *repo_path = NULL;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--foreground") == 0) foreground=true;
         else if (strcmp(argv[i], "--inti-db") == 0) init_db_only=true;
         else if (strncmp(argv[i], "--vault-dir=", 12) == 0) vault_override = argv[i] + 12;
+        else if (strncmp(argv[i], "--repo=", 7) == 0) repo_path = argv[i] + 7;
+    }
+
+    struct stat repo;
+    if (stat(repo_path, &repo) < 0) {
+        fprintf(stderr, "Invalid repo directory: %s\n", repo_path);
+        return 1;
+    } 
+    else if (!S_ISDIR(repo.st_mode)) {
+        fprintf(stderr, "Invalid repo directory: %s\n", repo_path);
+        return 1;
     }
 
     signal(SIGINT, handle_sig);
@@ -85,17 +107,22 @@ int main(int argc, char **argv) {
         cv_db_close(&db);
         return 1;
     }
+    printf("[codevault] Started tracking in %s\n", dirpath);
 
     if (init_db_only) {
         cv_db_close(&db);
+        printf("[codevault] Closing database\n");
         return 0;
     }
 
-    while (running) {
-        // actual code goes here
-        sleep(1);
-    }
+    int result = cv_watcher_start(repo_path, &on_repo_changed);
 
+    // while (running) {
+    //     // actual code goes here
+    //     sleep(1);
+    // }
+
+    printf("[codevault] Watcher stopped, cleaning up...\n");
     cv_db_close(&db);
     return 0;
 }
