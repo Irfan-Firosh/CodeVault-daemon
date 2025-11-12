@@ -39,4 +39,63 @@ static int daemonize_process(bool foreground) {
     if (fd0 > 2) close(fd0);
     if (fd1 > 2) close(fd1);
     if (fd2 > 2) close(fd2);
+
+    return 0;
+}
+
+int main(int argc, char **argv) {
+    bool foreground = false;
+    bool init_db_only = false;
+    const char *vault_override = NULL;
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--foreground") == 0) foreground=true;
+        else if (strcmp(argv[i], "--inti-db") == 0) init_db_only=true;
+        else if (strncmp(argv[i], "--vault-dir=", 12) == 0) vault_override = argv[i] + 12;
+    }
+
+    signal(SIGINT, handle_sig);
+    signal(SIGTERM, handle_sig);
+
+    if (daemonize_process  != 0) {
+        fprintf(stderr, "daemonize failed: %s\n", strerror(errno));
+        return 1;
+    }
+
+    const char *base = cv_resolve_vault_dir(vault_override);
+    char dirpath[PATH_MAX];
+    char dbpath[PATH_MAX];
+    snprintf(dirpath, sizeof(dirpath), "%s/.codevault", base);
+
+    if (mkdir(dbpath, 0700) != 0 && errno != EEXIST) {
+        fprintf(stderr, "mkdir %s failed: %s\n", dirpath, strerror(errno));
+        return 1;
+    }
+    snprintf(dbpath, sizeof(dbpath), "%s/vault.db", dirpath);
+
+    cv_db_t db = {0};
+
+    if (cv_db_open(&db, dbpath) != SQLITE_OK) {
+        fprintf(stderr, "Failed to open DB: %s\n", dbpath);
+        return 1;
+    }
+
+    if (cv_db_init_schema(&db) != SQLITE_OK) {
+        fprintf(stderr, "Failed to intialize DB schema\n");
+        cv_db_close(&db);
+        return 1;
+    }
+
+    if (init_db_only) {
+        cv_db_close(&db);
+        return 0;
+    }
+
+    while (running) {
+        // actual code goes here
+        sleep(1);
+    }
+
+    cv_db_close(&db);
+    return 0;
 }
