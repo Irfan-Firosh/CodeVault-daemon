@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
     signal(SIGINT, handle_sig);
     signal(SIGTERM, handle_sig);
 
-    if (daemonize_process  != 0) {
+    if (daemonize_process(foreground)  != 0) {
         fprintf(stderr, "daemonize failed: %s\n", strerror(errno));
         return 1;
     }
@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
     char dbpath[PATH_MAX];
     snprintf(dirpath, sizeof(dirpath), "%s/.codevault", base);
 
-    if (mkdir(dbpath, 0700) != 0 && errno != EEXIST) {
+    if (mkdir(dirpath, 0700) != 0 && errno != EEXIST) {
         fprintf(stderr, "mkdir %s failed: %s\n", dirpath, strerror(errno));
         return 1;
     }

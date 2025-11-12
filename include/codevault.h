@@ -13,13 +13,13 @@
 #include <limits.h>
 
 static inline const char *cv_resolve_vault_dir(const char *override) {
-    if (override and override[0]) return override;
+    if (override && override[0]) return override;
 
     const char *xdg = getenv("XDG_CONFIG_HOME");
-    if (xdg and *xdg) return xdg;
+    if (xdg && *xdg) return xdg;
 
     const char *home = getenv("HOME");
-    if (home and *home) return home;
+    if (home && *home) return home;
 
     return ".";
 }
